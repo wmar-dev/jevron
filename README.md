@@ -35,6 +35,7 @@ Extracted data, parquet files and label results live in `data/`, which is git-ig
 - mailbox and folder sizes
 - the sender → recipient communication network
 - body length, recipient counts and common subject terms, plus a full-text `search()` helper
+- the UC Berkeley hand-labeled subset (about 1,700 emails): category frequencies, annotator agreement, repeat labels of identical emails, how the subset is skewed against the corpus, topic × tone, and which categories are usable as a Jev benchmark. Download [`enron_with_categories.tar.gz`](https://bailando.berkeley.edu/enron_email.html) to `~/Downloads/`. `jevron.berkeley` extracts it into `data/berkeley/` and links each labeled email to the corpus
 
 ## Labeling emails with the `jevron` CLI
 
@@ -133,6 +134,7 @@ raptor since:2001-06-01 until:2002-01-01 from:enron.com to:aol.com user:lay-k fo
 
 - William W. Cohen, *Enron Email Dataset*, Carnegie Mellon University. <https://www.cs.cmu.edu/~enron/>
 - Bryan Klimt and Yiming Yang, "The Enron Corpus: A New Dataset for Email Classification Research," *Machine Learning: ECML 2004*, LNCS 3201, pp. 217–226, Springer, 2004. <https://doi.org/10.1007/978-3-540-30115-8_22>
+- UC Berkeley Enron Email Analysis project, about 1,700 Enron emails hand-labeled by genre, topic and emotional tone (`enron_with_categories.tar.gz`). <https://bailando.berkeley.edu/enron_email.html>
 - Federal Energy Regulatory Commission, Docket No. PA02-2-000, *Fact-Finding Investigation of Potential Manipulation of Electric and Natural Gas Prices*, 2002–2004. The emails were first made public through this investigation.
 
 ### Jev / TypeSafe AI

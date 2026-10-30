@@ -15,19 +15,19 @@ export TYPESAFE_API_KEY=…  # create a key at https://console.typesafe.ai/keys
 
 ## Dataset
 
-Download the CMU release (May 7, 2015, about 423 MB compressed). The notebook and `jevron ingest` look for it in `~/Downloads/`. If you save it elsewhere, change `TARBALL` in the notebook or pass `--tarball` to `jevron ingest`.
+Download the CMU release (May 7, 2015, about 423 MB compressed). `jevron ingest` looks for it in `~/Downloads/`. If you save it elsewhere, pass `--tarball`, or change `TARBALL` in the notebook.
 
 ```bash
 curl -L -o ~/Downloads/enron_mail_20150507.tar.gz https://www.cs.cmu.edu/~enron/enron_mail_20150507.tar.gz
 ```
 
-The archive unpacks to `maildir/<user>/<folder>/<n>.`. It holds about 517k messages from about 150 Enron employees, mostly senior management. Many messages appear in more than one folder or mailbox. Both the notebook and `jevron ingest` deduplicate them, leaving 255,170 distinct emails.
+The archive unpacks to `maildir/<user>/<folder>/<n>.`. It holds about 517k messages from about 150 Enron employees, mostly senior management. Many messages appear in more than one folder or mailbox. `jevron ingest` deduplicates them, leaving 255,170 distinct emails, and the notebook, CLI and browser all use that result.
 
 Extracted data, parquet files and label results live in `data/`, which is git-ignored.
 
 ## Exploratory analysis
 
-[`enron_analysis.ipynb`](enron_analysis.ipynb) extracts the archive and parses every message into a DataFrame, cached as `data/enron_emails.parquet`. It then looks at:
+[`enron_analysis.ipynb`](enron_analysis.ipynb) loads the corpus built by `jevron ingest` (`data/emails.parquet` and `data/locations.parquet`), building it first if it's missing. It shares its parsing and deduplication code with the CLI through `jevron.corpus`. It then looks at:
 
 - email volume over time, annotated with key events in Enron's collapse
 - send-time patterns by day of week and hour of day
@@ -35,8 +35,6 @@ Extracted data, parquet files and label results live in `data/`, which is git-ig
 - mailbox and folder sizes
 - the sender → recipient communication network
 - body length, recipient counts and common subject terms, plus a full-text `search()` helper
-
-The first full parse takes a few minutes. Set `MAX_FILES` in the notebook to work on a sample.
 
 ## Labeling emails with the `jevron` CLI
 

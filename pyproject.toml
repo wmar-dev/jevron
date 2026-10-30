@@ -3,6 +3,8 @@ name = "jevron"
 version = "0.1.0"
 description = "Tools for labeling the Enron email corpus with Jev"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.14"
 dependencies = [
     "ipykernel>=7.4.0",

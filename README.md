@@ -141,3 +141,7 @@ raptor since:2001-06-01 until:2002-01-01 from:enron.com to:aol.com user:lay-k fo
 
 - TypeSafe AI. <https://typesafe.ai>
 - Jev documentation: [overview](https://docs.typesafe.ai/), [quickstart](https://docs.typesafe.ai/introduction/quickstart), [System One concepts](https://docs.typesafe.ai/concepts/system-one), [primitives (Choice, Score, Noul)](https://docs.typesafe.ai/primitives), [confidence](https://docs.typesafe.ai/confidence), [models](https://docs.typesafe.ai/models), [API reference](https://docs.typesafe.ai/api)
+
+## License
+
+The code and documentation in this repository are under the [MIT License](LICENSE). The Enron email dataset, the UC Berkeley labels and the TypeSafe SDK are not part of this repository and keep their own terms.

@@ -88,7 +88,7 @@ Each email is sent to Jev as its From/To/Date/Subject headers plus the body. Quo
 Some practical notes:
 
 - Ask one specific question per property and combine the answers in your own code.
-- Pin a model version with `--model`, such as `jev-1.13.0`, once you've tuned confidence thresholds, so they don't drift when `jev-latest` changes. `jevron models` lists what's available.
+- Pin a model version with `--model`, such as `jev-1.14.0`, once you've tuned confidence thresholds, so they don't drift when `jev-latest` changes. `jevron models` lists what's available.
 - The corpus contains real people's personal information. Labeling it sends email text to TypeSafe's API.
 
 Run the tests with `uv run pytest`. They use a mock Jev API, so no key is needed.

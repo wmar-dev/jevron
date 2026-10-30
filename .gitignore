@@ -1,4 +1,17 @@
+# Enron dataset: tarball, extracted maildir and parsed cache
+*.tar.gz
 data/
+
+# Python
 .venv/
 __pycache__/
+*.py[cod]
+
+# Jupyter
 .ipynb_checkpoints/
+
+# Secrets
+.env
+
+# macOS
+.DS_Store

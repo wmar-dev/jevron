@@ -9,7 +9,7 @@ description: "Task list template for feature implementation"
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification, or if the constitution requires them (jevron: changes to parsing, filtering, state construction or Jev calls under `src/jevron/` MUST include offline tests, per Principles III and IV).
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 

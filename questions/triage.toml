@@ -1,0 +1,16 @@
+# General-purpose triage: what an email is about, how urgent it is, and whether it's personal.
+# Usage: jevron ask -q questions/triage.toml --sample 5
+
+[topic]
+type = "choice"
+instructions = "What is this email mainly about?"
+criteria = { trading = "Energy trading, deals, positions, scheduling or pricing", legal_regulatory = "Legal, regulatory, compliance or government matters", finance_accounting = "Finance, accounting, budgets or reporting", personnel = "Hiring, HR, compensation or organizational changes", it_admin = "IT, systems access, office or administrative logistics", news_newsletter = "News articles, newsletters or mass mailings", personal = "Personal, non-business correspondence", other = "Anything else" }
+
+[urgency]
+type = "score"
+instructions = "How urgent is this email for its recipients?"
+criteria = ["Not urgent: informational, no action needed", "Somewhat urgent: action needed in the coming days", "Very urgent: immediate action or decision needed"]
+
+[automated]
+type = "noul"
+instructions = "The email was sent by an automated system or mailing list rather than written by a person to the recipients."

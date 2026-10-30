@@ -1,0 +1,24 @@
+# Signals relevant to the Enron investigation. These flag emails for a human to read;
+# they are not findings.
+# Usage: jevron label -q questions/investigation.toml --since 2001-06-01 --out data/investigation.jsonl
+
+[special_purpose_entities]
+type = "noul"
+instructions = "The email discusses special purpose entities or off-balance-sheet partnerships (for example LJM, Raptor, Chewco, Talon, JEDI or Whitewing)."
+
+[accounting_concern]
+type = "noul"
+instructions = "The email raises a concern or question about how something is accounted for, reported or disclosed."
+
+[document_handling]
+type = "noul"
+instructions = "The email discusses retaining, deleting, shredding or destroying documents or records."
+
+[market_manipulation]
+type = "noul"
+instructions = "The email discusses trading strategies that exploit market rules, such as gaming congestion charges, fake scheduling or round-trip trades."
+
+[sentiment]
+type = "score"
+instructions = "How worried or alarmed is the author about the company's situation?"
+criteria = ["Not worried at all", "Somewhat concerned", "Very worried or alarmed"]

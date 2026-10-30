@@ -1,7 +1,7 @@
 [project]
 name = "jevron"
 version = "0.1.0"
-description = "Add your description here"
+description = "Tools for labeling the Enron email corpus with Jev"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -11,3 +11,18 @@ dependencies = [
     "pyarrow>=26.0.0",
     "typesafe-sdk>=0.7.5",
 ]
+
+[project.scripts]
+jevron = "jevron.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9.9,<0.10"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

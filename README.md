@@ -15,15 +15,15 @@ export TYPESAFE_API_KEY=…  # create a key at https://console.typesafe.ai/keys
 
 ## Dataset
 
-Download the CMU release (May 7, 2015, about 423 MB compressed). The notebook looks for it in `~/Downloads/`; change `TARBALL` in the notebook if you save it elsewhere.
+Download the CMU release (May 7, 2015, about 423 MB compressed). The notebook and `jevron ingest` look for it in `~/Downloads/`. If you save it elsewhere, change `TARBALL` in the notebook or pass `--tarball` to `jevron ingest`.
 
 ```bash
 curl -L -o ~/Downloads/enron_mail_20150507.tar.gz https://www.cs.cmu.edu/~enron/enron_mail_20150507.tar.gz
 ```
 
-The archive unpacks to `maildir/<user>/<folder>/<n>.`. It holds about 517k messages from about 150 Enron employees, mostly senior management. Many messages appear in more than one folder or mailbox, so the notebook deduplicates them.
+The archive unpacks to `maildir/<user>/<folder>/<n>.`. It holds about 517k messages from about 150 Enron employees, mostly senior management. Many messages appear in more than one folder or mailbox. Both the notebook and `jevron ingest` deduplicate them, leaving 255,170 distinct emails.
 
-Extracted data and the parsed parquet cache live in `data/`, which is git-ignored.
+Extracted data, parquet files and label results live in `data/`, which is git-ignored.
 
 ## Exploratory analysis
 
@@ -38,50 +38,60 @@ Extracted data and the parsed parquet cache live in `data/`, which is git-ignore
 
 The first full parse takes a few minutes. Set `MAX_FILES` in the notebook to work on a sample.
 
-## Asking Jev about emails
+## Labeling emails with the `jevron` CLI
 
-Each email becomes the state, and each property you care about becomes one typed question:
+`uv sync` installs a `jevron` command (run it as `uv run jevron …`, or activate `.venv`).
 
-```python
-from typesafe_sdk import Choice, Noul, Score, TypeSafeClient
-
-email = emails.iloc[0]
-state = f"From: {email['from']}\nSubject: {email['subject']}\n\n{email['body']}"
-
-with TypeSafeClient(model="jev-latest") as client:
-    response = client.system_one(
-        state=state,
-        questions={
-            "topic": Choice(
-                instructions="What is this email mainly about?",
-                criteria={
-                    "trading": "Energy trading, deals, positions or pricing",
-                    "legal_regulatory": "Legal, regulatory or compliance matters",
-                    "personnel": "Hiring, HR, org changes",
-                    "personal": "Non-business, personal correspondence",
-                    "other": "Anything else",
-                },
-            ),
-            "urgency": Score(
-                instructions="How urgent is this email for the recipient?",
-                criteria=["not urgent", "somewhat urgent", "very urgent"],
-            ),
-            "spe": Noul(
-                instructions="The email discusses special purpose entities or off-balance-sheet partnerships (e.g. LJM, Raptor, Chewco).",
-            ),
-        },
-    )
-
-topic = response.answers["topic"]
-print(topic.choice, topic.confidence)
+```bash
+uv run jevron ingest                 # tarball -> data/emails.parquet (255k distinct emails, ~1-2 min)
+uv run jevron stats                  # corpus summary
+uv run jevron emails --user lay-k --search raptor     # browse; --format ids|jsonl for scripting
+uv run jevron show '<12188219.1075842087604.JavaMail.evans@thyme>'   # the exact text Jev will see
 ```
+
+Questions live in TOML files, one table per question. See [`questions/triage.toml`](questions/triage.toml) and [`questions/investigation.toml`](questions/investigation.toml):
+
+```toml
+[topic]
+type = "choice"
+instructions = "What is this email mainly about?"
+criteria = { trading = "Energy trading or deals", personal = "Personal correspondence", other = "Anything else" }
+
+[urgency]
+type = "score"
+instructions = "How urgent is this email for its recipients?"
+criteria = ["Not urgent", "Somewhat urgent", "Very urgent"]
+
+[spe]
+type = "noul"
+instructions = "The email discusses special purpose entities such as LJM or Raptor."
+```
+
+Try questions on a few emails, then label in bulk:
+
+```bash
+# print answers for 5 random emails (or add --noul NAME=STATEMENT for a quick yes/no question)
+uv run jevron ask -q questions/triage.toml --sample 5
+
+# preview size, then label; results append to the JSONL file, and re-running skips finished emails and retries failed ones
+uv run jevron label -q questions/investigation.toml --since 2001-06-01 --out data/investigation.jsonl --dry-run
+uv run jevron label -q questions/investigation.toml --since 2001-06-01 --out data/investigation.jsonl
+
+# one row per email: metadata plus a column per question (and <name>_confidence for choice/score)
+uv run jevron export data/investigation.jsonl --out data/investigation.parquet
+```
+
+All selection commands share the same filters: `--user`, `--folder`, `--from`, `--to`, `--since`, `--until`, `--search`, `--id`/`--ids-file`, `--sample`, `--limit`. Run `uv run jevron <command> --help` for details.
+
+Each email is sent to Jev as its From/To/Date/Subject headers plus the body. Quoted reply chains (`-----Original Message-----` onwards and `>` lines) are dropped, and the body is truncated at `--max-chars` (default 4000).
 
 Some practical notes:
 
 - Ask one specific question per property and combine the answers in your own code.
-- Pin a model version, such as `jev-1.13.0`, once you've tuned confidence thresholds, so they don't drift when `jev-latest` changes.
-- Deduplicate before labeling. About half of the raw files are duplicates.
+- Pin a model version with `--model`, such as `jev-1.13.0`, once you've tuned confidence thresholds, so they don't drift when `jev-latest` changes. `jevron models` lists what's available.
 - The corpus contains real people's personal information. Labeling it sends email text to TypeSafe's API.
+
+Run the tests with `uv run pytest`. They use a mock Jev API, so no key is needed.
 
 ## References
 

@@ -1,13 +1,16 @@
 """Ask Jev questions about many emails concurrently, with resumable JSONL output.
 
 Each output line is one email:
-    {"message_id": ..., "model": ..., "usage": {...}, "answers": {name: answer}}
+    {"message_id": ..., "model": ..., "usage": {...}, "answers": {name: answer}, "questions": fingerprint}
 or, if the request failed:
-    {"message_id": ..., "error": "..."}
-Re-running with the same output file skips emails that already have answers.
+    {"message_id": ..., "error": "...", "questions": fingerprint}
+Re-running with the same output file skips emails that already have answers. A file is
+only resumed with the questions that produced it, and only while Jev answers with the
+same model, so each file holds one question set answered by one model.
 """
 
 import asyncio
+import hashlib
 import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -39,11 +42,45 @@ class Summary:
     output_tokens: int = 0
 
 
-def completed_ids(out: Path) -> set[str]:
+class ModelChanged(ValueError):
+    """Jev answered with a different model than the rest of the results file."""
+
+
+def fingerprint(questions: dict) -> str:
+    """Short hash of a question set (names, types, instructions and criteria)."""
+    spec = {name: q if isinstance(q, dict) else q.model_dump(mode="json", exclude_none=True)
+            for name, q in questions.items()}
+    return hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:12]
+
+
+@dataclass
+class Resume:
+    done: set[str]
+    model: str | None
+
+
+def resume(out: Path, questions: dict) -> Resume:
+    """Emails already answered in `out`, and the model that answered them. Raises ValueError
+    if `out` holds answers to other questions or from more than one model."""
     if not out.exists():
-        return set()
-    with open(out) as f:
-        return {r["message_id"] for r in map(json.loads, f) if "error" not in r}
+        return Resume(set(), None)
+    want = fingerprint(questions)
+    done, models = set(), set()
+    for message_id, record in read_records(out).items():
+        if "error" in record:
+            continue
+        if record.get("questions") != want:
+            raise ValueError(
+                f"{out} was labeled with a different question set "
+                f"(it answers {', '.join(sorted(record.get('answers', {})))}; now asking {', '.join(sorted(questions))}, "
+                f"fingerprint {record.get('questions')} vs {want}). Label into a new --out file, "
+                "or restore the original questions.")
+        done.add(message_id)
+        models.add(record.get("model"))
+    if len(models) > 1:
+        raise ValueError(f"{out} mixes answers from {', '.join(sorted(map(str, models)))}; "
+                         "label into a new --out file")
+    return Resume(done, next(iter(models), None))
 
 
 async def ask_one(client: AsyncTypeSafeClient, row, questions: dict, max_chars: int | None) -> dict:
@@ -72,18 +109,27 @@ async def label(
 ) -> Summary:
     """Label `emails`, appending one JSON line per email to `out` (if given)."""
     summary = Summary()
-    skip = completed_ids(out) if out else set()
-    todo = emails[~emails["message_id"].isin(skip)]
+    prior = resume(out, questions) if out else Resume(set(), None)
+    model = prior.model
+    tag = fingerprint(questions)
+    todo = emails[~emails["message_id"].isin(prior.done)]
     summary.skipped = len(emails) - len(todo)
     rows: Iterable = iter(todo.to_dict("records"))
     sink = open(out, "a") if out else None
 
     async def worker():
+        nonlocal model
         for row in rows:
-            record = await ask_one(client, row, questions, max_chars)
+            record = await ask_one(client, row, questions, max_chars) | {"questions": tag}
             if "error" in record:
                 summary.errors += 1
             else:
+                if out and model is None:
+                    model = record["model"]
+                elif out and record["model"] != model:
+                    raise ModelChanged(
+                        f"Jev answered with {record['model']}, but {out} holds answers from {model}. "
+                        f"Pin the model with --model {model}, or label into a new --out file.")
                 summary.done += 1
                 summary.input_tokens += record["usage"].get("input_tokens") or 0
                 summary.output_tokens += record["usage"].get("output_tokens") or 0
@@ -97,7 +143,7 @@ async def label(
         async with asyncio.TaskGroup() as tg:
             for _ in range(concurrency):
                 tg.create_task(worker())
-    except* FATAL as group:
+    except* (*FATAL, ModelChanged) as group:
         raise group.exceptions[0] from None
     finally:
         if sink:

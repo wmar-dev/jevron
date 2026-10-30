@@ -69,7 +69,7 @@ ANSWERS = {
 }
 
 
-def mock_client(status=200, fail_subject=None, seen=None):
+def mock_client(status=200, fail_subject=None, seen=None, model="jev-1.13.0"):
     def handler(request):
         body = json.loads(request.content)
         if seen is not None:
@@ -78,7 +78,7 @@ def mock_client(status=200, fail_subject=None, seen=None):
             return httpx2.Response(status, json={"detail": "nope"})
         if fail_subject and f"Subject: {fail_subject}" in body["state"]:
             return httpx2.Response(422, json={"detail": "bad state"})
-        return httpx2.Response(200, json={"model": "jev-1.13.0", "usage": {"input_tokens": 10, "output_tokens": 3},
+        return httpx2.Response(200, json={"model": model, "usage": {"input_tokens": 10, "output_tokens": 3},
                                           "answers": ANSWERS})
 
     return AsyncTypeSafeClient(api_key="test", transport=httpx2.MockTransport(handler), compression=False)
@@ -116,6 +116,49 @@ def test_label_writes_resumes_and_exports(data_dir, tmp_path):
 def test_label_stops_on_auth_error(data_dir, tmp_path):
     with pytest.raises(TypeSafeAuthenticationError):
         asyncio.run(label.label(corpus.load(data_dir), QS, mock_client(status=401), tmp_path / "o.jsonl"))
+
+
+def test_resume_refuses_other_questions(data_dir, tmp_path, capsys):
+    emails = corpus.load(data_dir)
+    out = tmp_path / "out.jsonl"
+    asyncio.run(label.label(emails.head(2), QS, mock_client(), out))
+    assert all(json.loads(line)["questions"] == label.fingerprint(QS) for line in out.read_text().splitlines())
+    # SDK question objects and the equivalent dicts get the same fingerprint.
+    assert label.fingerprint({"spe": questions.Noul(instructions="Mentions SPEs")}) == label.fingerprint(QS)
+
+    reworded = {"spe": {"type": "noul", "instructions": "Mentions LJM"}}
+    for other in (reworded, QS | {"x": {"type": "noul", "instructions": "y"}}):
+        with pytest.raises(ValueError, match="different question set"):
+            asyncio.run(label.label(emails, other, mock_client(), out))
+    assert len(out.read_text().splitlines()) == 2
+
+    # The dry run catches it too, before any request.
+    base = ["--data-dir", str(data_dir), "label", "--out", str(out), "--dry-run"]
+    assert cli.main(base + ["--noul", "spe=Mentions LJM"]) == 1
+    assert "different question set" in capsys.readouterr().err
+    assert cli.main(base + ["--noul", "spe=Mentions SPEs"]) == 0
+    assert "2 already in" in capsys.readouterr().err
+
+
+def test_resume_refuses_model_change(data_dir, tmp_path):
+    emails = corpus.load(data_dir)
+    out = tmp_path / "out.jsonl"
+    asyncio.run(label.label(emails.head(2), QS, mock_client(), out))
+    with pytest.raises(label.ModelChanged, match="--model jev-1.13.0"):
+        asyncio.run(label.label(emails, QS, mock_client(model="jev-1.14.0"), out))
+    assert {json.loads(line)["model"] for line in out.read_text().splitlines()} == {"jev-1.13.0"}
+    assert label.resume(out, QS).model == "jev-1.13.0"
+
+
+def test_export_warns_on_mixed_models(data_dir, tmp_path, capsys):
+    ids = list(corpus.load(data_dir)["message_id"][:2])
+    out = tmp_path / "r.jsonl"
+    out.write_text("".join(json.dumps({"message_id": i, "model": m, "answers": ANSWERS}) + "\n"
+                           for i, m in zip(ids, ["jev-1.13.0", "jev-1.14.0"])))
+    assert cli.main(["--data-dir", str(data_dir), "export", str(out), "--out", str(tmp_path / "r.csv")]) == 0
+    assert "mixes models (jev-1.13.0: 1, jev-1.14.0: 1)" in capsys.readouterr().err
+    with pytest.raises(ValueError, match="different question set"):
+        label.resume(out, QS)  # written without a fingerprint
 
 
 def test_cli_dry_run_and_limits(data_dir, tmp_path, capsys):

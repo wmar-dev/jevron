@@ -150,10 +150,11 @@ def cmd_ask(args):
 def cmd_label(args):
     qs = load_questions(args)
     emails = select(args)
-    skip = label.completed_ids(args.out)
-    todo = emails[~emails["message_id"].isin(skip)]
+    prior = label.resume(args.out, qs)
+    todo = emails[~emails["message_id"].isin(prior.done)]
     chars = sum(len(corpus.to_state(r, args.max_chars)) for r in todo.to_dict("records"))
-    eprint(f"{len(emails):,} emails selected, {len(skip & set(emails['message_id'])):,} already in {args.out}, "
+    by = f" (answered by {prior.model})" if prior.model else ""
+    eprint(f"{len(emails):,} emails selected, {len(prior.done & set(emails['message_id'])):,} already in {args.out}{by}, "
            f"{len(todo):,} to label")
     eprint(f"{len(qs)} questions: {', '.join(qs)}")
     eprint(f"~{chars // 4:,} input tokens of email text (rough estimate: characters / 4)")
@@ -179,6 +180,10 @@ def cmd_export(args):
     results = label.read_results(args.results)
     meta = corpus.load(args.data_dir, columns=META + ["n_copies"])
     merged = meta.merge(results, on="message_id", how="inner")
+    models = merged["model"].value_counts()
+    if len(models) > 1:
+        eprint(f"warning: {args.results} mixes models ({', '.join(f'{m}: {n:,}' for m, n in models.items())}); "
+               "their scores and confidences may not be comparable")
     if args.out.suffix == ".parquet":
         merged.to_parquet(args.out, index=False)
     elif args.out.suffix == ".csv":

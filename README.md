@@ -88,6 +88,7 @@ Some practical notes:
 
 - Ask one specific question per property and combine the answers in your own code.
 - Pin a model version with `--model`, such as `jev-1.14.0`, once you've tuned confidence thresholds, so they don't drift when `jev-latest` changes. `jevron models` lists what's available.
+- Each results file holds one question set answered by one model. Every line records a fingerprint of the questions, and `label` refuses to resume a file with different questions (even reworded ones). It also stops if Jev starts answering with a different model, for example when `jev-latest` moves to a new version, and tells you which version to pin. To change either, label into a new `--out` file. `export` warns if a file mixes models.
 - The corpus contains real people's personal information. Labeling it sends email text to TypeSafe's API.
 
 Run the tests with `uv run pytest`. They use a mock Jev API, so no key is needed.

@@ -43,7 +43,7 @@ The first full parse takes a few minutes. Set `MAX_FILES` in the notebook to wor
 `uv sync` installs a `jevron` command (run it as `uv run jevron …`, or activate `.venv`).
 
 ```bash
-uv run jevron ingest                 # tarball -> data/emails.parquet (255k distinct emails, ~1-2 min)
+uv run jevron ingest                 # tarball -> data/emails.parquet (255k distinct emails) + data/locations.parquet (~1-2 min)
 uv run jevron stats                  # corpus summary
 uv run jevron emails --user lay-k --search raptor     # browse; --format ids|jsonl for scripting
 uv run jevron show '<12188219.1075842087604.JavaMail.evans@thyme>'   # the exact text Jev will see
@@ -92,6 +92,42 @@ Some practical notes:
 - The corpus contains real people's personal information. Labeling it sends email text to TypeSafe's API.
 
 Run the tests with `uv run pytest`. They use a mock Jev API, so no key is needed.
+
+## Browsing the corpus
+
+`jevron browse` is a read-only terminal mail client for the corpus. It needs a terminal of at least 80×24.
+
+```bash
+uv run jevron browse                                   # mailboxes → folders → messages → reader
+uv run jevron browse --labels data/investigation.jsonl # also show and filter existing Jev labels
+```
+
+Folders show every copy of an email as it was stored on disk, while search results list each distinct email once. The browser never calls Jev and never writes any files.
+
+If `data/` was built before the browser existed, it has no `data/locations.parquet`. Rebuild it once with `uv run jevron ingest --force`.
+
+| Keys | Where | Action |
+| --- | --- | --- |
+| `↑`/`↓` or `j`/`k`, `PgUp`/`PgDn`, `g`/`G` | everywhere | move, page, first or last |
+| `Enter` | lists | open |
+| `q`/`Esc` | everywhere | back (`Q` quits) |
+| `/` | everywhere | search the whole corpus |
+| `f` | lists | filter the current list |
+| `o` | lists | reverse the sort order |
+| `r` | reader | toggle the raw original file |
+| `t` | reader | conversation (same subject, ignoring Re:/Fw:) |
+| `s` | reader | more from this sender |
+| `c` | reader | every mailbox and folder holding a copy |
+| `n`/`p` | reader | next or previous email in the list |
+| `y` | reader | copy the message ID (to use with `jevron show ID` or `--id`) |
+| `L` | everywhere | label filter, e.g. `spe>=0.8` or `topic=trading` (needs `--labels`) |
+| `?` | everywhere | help |
+
+Search uses the same matching as `jevron emails`. Free text matches the subject or body, and you can add tokens:
+
+```text
+raptor since:2001-06-01 until:2002-01-01 from:enron.com to:aol.com user:lay-k folder:inbox
+```
 
 ## References
 

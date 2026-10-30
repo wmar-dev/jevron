@@ -6,6 +6,8 @@ data/
 .venv/
 __pycache__/
 *.py[cod]
+dist/
+*.egg-info/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -15,3 +17,4 @@ __pycache__/
 
 # macOS
 .DS_Store
+*.swp

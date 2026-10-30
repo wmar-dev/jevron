@@ -21,9 +21,9 @@ def eprint(*args, **kwargs):
 
 
 def cmd_ingest(args):
-    out = corpus.emails_path(args.data_dir)
-    if out.exists() and not args.force:
-        eprint(f"{out} already exists (use --force to rebuild)")
+    out, locs = corpus.emails_path(args.data_dir), corpus.locations_path(args.data_dir)
+    if out.exists() and locs.exists() and not args.force:
+        eprint(f"{out} and {locs} already exist (use --force to rebuild)")
         return 0
     if not corpus.maildir(args.data_dir).exists() and not args.tarball.exists():
         eprint(f"tarball not found: {args.tarball} (pass --tarball)")
@@ -33,8 +33,8 @@ def cmd_ingest(args):
     def progress(done, total):
         eprint(f"\r  parsed {done}/{total} mailboxes", end="", flush=True)
 
-    emails = corpus.build(args.tarball, args.data_dir, args.workers, progress)
-    eprint(f"\nWrote {len(emails):,} distinct emails to {out}")
+    emails, locations = corpus.build(args.tarball, args.data_dir, args.workers, progress)
+    eprint(f"\nWrote {len(emails):,} distinct emails to {out} and {len(locations):,} file locations to {locs}")
     return 0
 
 
@@ -190,6 +190,12 @@ def cmd_export(args):
     return 0
 
 
+def cmd_browse(args):
+    from jevron.browse import app
+
+    return app.run(args.data_dir, args.labels or [])
+
+
 def cmd_models(args):
     from typesafe_sdk import TypeSafeClient
 
@@ -230,7 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--concurrency", type=int, default=8, help="parallel requests (default: 8)")
     g.add_argument("--max-chars", type=int, default=4000, help="truncate email bodies to N characters (default: 4000)")
 
-    s = sub.add_parser("ingest", help="extract the tarball and build data/emails.parquet")
+    s = sub.add_parser("ingest", help="extract the tarball and build data/emails.parquet and data/locations.parquet")
     s.add_argument("--tarball", type=Path, default=corpus.DEFAULT_TARBALL)
     s.add_argument("--workers", type=int, help="parser processes (default: CPU count)")
     s.add_argument("--force", action="store_true", help="rebuild even if the parquet exists")
@@ -262,6 +268,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("results", type=Path)
     s.add_argument("--out", "-o", type=Path, required=True, help="output .csv or .parquet")
     s.set_defaults(func=cmd_export)
+
+    s = sub.add_parser("browse", help="read-only terminal mail client for the corpus")
+    s.add_argument("--labels", type=Path, action="append", metavar="FILE",
+                   help="jevron label results to show and filter by (repeatable)")
+    s.set_defaults(func=cmd_browse)
 
     s = sub.add_parser("models", help="list available Jev models")
     s.set_defaults(func=cmd_models)

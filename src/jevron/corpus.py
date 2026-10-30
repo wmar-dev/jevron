@@ -24,6 +24,10 @@ def emails_path(data_dir: Path) -> Path:
     return data_dir / "emails.parquet"
 
 
+def locations_path(data_dir: Path) -> Path:
+    return data_dir / "locations.parquet"
+
+
 def extract(tarball: Path, data_dir: Path) -> Path:
     """Unpack the tarball unless the maildir is already there."""
     root = maildir(data_dir)
@@ -91,11 +95,12 @@ def parse_all(root: Path, workers: int | None = None, progress: Callable[[int, i
     return pd.DataFrame(rows)
 
 
-def dedupe(df: pd.DataFrame) -> pd.DataFrame:
+def dedupe(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Collapse copies of the same email across folders and mailboxes.
 
     Keeps the first copy (by mailbox, folder, path) and records how many copies
-    there were and which mailboxes held them.
+    there were and which mailboxes held them. Also returns every file's location,
+    keyed by the message_id of the email it was collapsed into.
     """
     df = df.sort_values(["user", "folder", "path"], ignore_index=True)
     key = pd.util.hash_pandas_object(df[DEDUP_KEY].astype(str), index=False)
@@ -104,14 +109,22 @@ def dedupe(df: pd.DataFrame) -> pd.DataFrame:
     first["n_copies"] = groups.size().loc[key[first.index]].to_numpy()
     mailboxes = groups["user"].unique().map(sorted)
     first["mailboxes"] = mailboxes.loc[key[first.index]].to_numpy()
-    return first.sort_values("date", ignore_index=True)
+    kept_id = pd.Series(first["message_id"].to_numpy(), index=key[first.index].to_numpy())
+    locations = pd.DataFrame({
+        "message_id": kept_id.loc[key.to_numpy()].to_numpy(),
+        "user": df["user"],
+        "folder": df["folder"],
+        "path": df["path"],
+    })
+    return first.sort_values("date", ignore_index=True), locations
 
 
-def build(tarball: Path, data_dir: Path, workers: int | None = None, progress=None) -> pd.DataFrame:
+def build(tarball: Path, data_dir: Path, workers: int | None = None, progress=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     root = extract(tarball, data_dir)
-    emails = dedupe(parse_all(root, workers, progress))
+    emails, locations = dedupe(parse_all(root, workers, progress))
     emails.to_parquet(emails_path(data_dir))
-    return emails
+    locations.to_parquet(locations_path(data_dir), index=False)
+    return emails, locations
 
 
 def load(data_dir: Path, columns: list[str] | None = None) -> pd.DataFrame:
@@ -119,6 +132,13 @@ def load(data_dir: Path, columns: list[str] | None = None) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"{path} not found; run `jevron ingest` first")
     return pd.read_parquet(path, columns=columns)
+
+
+def load_locations(data_dir: Path) -> pd.DataFrame:
+    path = locations_path(data_dir)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} not found; run `jevron ingest --force` to rebuild with folder locations")
+    return pd.read_parquet(path)
 
 
 def filter_emails(

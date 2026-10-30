@@ -135,13 +135,27 @@ def format_answer(answer: ChoiceAnswer | ScoreAnswer | NoulAnswer | dict) -> str
     return json.dumps(a)
 
 
+def read_records(path: Path) -> dict[str, dict]:
+    """Results file as {message_id: record}. A failed email may be retried and succeed
+    later in the file, so the latest record for each email wins."""
+    records = {}
+    with open(path) as f:
+        for lineno, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+                records[record["message_id"]] = record
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                raise ValueError(f"{path}:{lineno}: {e!r}") from None
+    return records
+
+
 def read_results(path: Path) -> pd.DataFrame:
     """Results file as a DataFrame: message_id, model, error, plus flattened answers."""
     rows = []
-    with open(path) as f:
-        for record in map(json.loads, f):
-            row = {"message_id": record["message_id"], "model": record.get("model"), "error": record.get("error")}
-            row.update(flatten(record.get("answers", {})))
-            rows.append(row)
-    # A failed email may be retried and succeed later in the file; keep its latest record.
-    return pd.DataFrame(rows).drop_duplicates("message_id", keep="last")
+    for record in read_records(path).values():
+        row = {"message_id": record["message_id"], "model": record.get("model"), "error": record.get("error")}
+        row.update(flatten(record.get("answers", {})))
+        rows.append(row)
+    return pd.DataFrame(rows)
